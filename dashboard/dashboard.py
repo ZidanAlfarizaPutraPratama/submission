@@ -23,6 +23,9 @@ def load_data(url):
 # Memuat dataset
 dataframes = {name: load_data(url) for name, url in DATA_URLS.items()}
 
+# Mengubah kolom 'dteday' ke format datetime
+dataframes['day']['date'] = pd.to_datetime(dataframes['day']['dteday'])
+
 # Menilai DataFrame day
 st.subheader("Menilai DataFrame Harian:")
 st.write("Informasi DataFrame Harian:")
@@ -33,47 +36,88 @@ st.write("Jumlah duplikasi:", dataframes['day'].duplicated().sum())
 st.write("Statistik deskriptif:")
 st.write(dataframes['day'].describe())
 
-# Menilai DataFrame hour
-st.subheader("Menilai DataFrame Jam:")
-st.write("Informasi DataFrame Jam:")
-st.text(dataframes['hour'].info())
-st.write("Jumlah nilai yang hilang:")
-st.write(dataframes['hour'].isna().sum())
-st.write("Jumlah duplikasi:", dataframes['hour'].duplicated().sum())
-st.write("Statistik deskriptif:")
-st.write(dataframes['hour'].describe())
+# Filter berdasarkan tanggal
+st.sidebar.header("Filter Data")
+start_date = st.sidebar.date_input("Tanggal Mulai", value=dataframes['day']['date'].min())
+end_date = st.sidebar.date_input("Tanggal Akhir", value=dataframes['day']['date'].max())
 
-# Cek apakah kolom 'date' ada di day_df
-if 'date' in dataframes['day'].columns:
-    sales_per_day = dataframes['day'].groupby('date')['cnt'].sum().reset_index()
-else:
-    st.write("Kolom 'date' tidak ditemukan di day_df. Berikut adalah kolom yang ada:")
-    st.write(dataframes['day'].columns)
+# Filter berdasarkan musim
+seasons = dataframes['day']['season'].unique()
+selected_season = st.sidebar.multiselect("Pilih Musim", seasons, default=seasons)
 
-# Lanjutkan dengan analisis data jika day_df tidak kosong
-if not dataframes['day'].empty:
+# Filter DataFrame berdasarkan tanggal dan musim
+filtered_data = dataframes['day'][
+    (dataframes['day']['date'] >= pd.to_datetime(start_date)) & 
+    (dataframes['day']['date'] <= pd.to_datetime(end_date)) &
+    (dataframes['day']['season'].isin(selected_season))
+]
+
+if not filtered_data.empty:
     st.title("Dashboard Data Penjualan")
 
-    # Visualisasi distribusi jumlah penjualan harian
+    # Menampilkan statistik deskriptif
+    st.write("Statistik Deskriptif untuk Data yang Dipilih:")
+    st.write(filtered_data.describe())
+
+    # EDA Univariate: Distribusi penjualan harian
     plt.figure(figsize=(12, 6))
-    sns.histplot(dataframes['day']['cnt'], bins=30, kde=True)
+    sns.histplot(filtered_data['cnt'], bins=30, kde=True)
     plt.title('Distribusi Jumlah Penjualan Harian')
     plt.xlabel('Jumlah Penjualan (cnt)')
     plt.ylabel('Frekuensi')
     st.pyplot(plt)
-    plt.clf()  # Membersihkan plot
+    plt.clf()
 
-    # Jumlah penjualan per jam
+    # EDA Kategorikal: Rata-rata penjualan per musim
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x='season', y='cnt', data=filtered_data, ci=None)
+    plt.title('Rata-rata Penjualan Per Musim')
+    plt.xlabel('Musim')
+    plt.ylabel('Rata-rata Jumlah Penjualan (cnt)')
+    st.pyplot(plt)
+    plt.clf()
+
+    # EDA: Penjualan berdasarkan kondisi cuaca
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x='weathersit', y='cnt', data=filtered_data, ci=None)
+    plt.title('Rata-rata Penjualan Berdasarkan Kondisi Cuaca')
+    plt.xlabel('Kondisi Cuaca')
+    plt.ylabel('Rata-rata Jumlah Penjualan (cnt)')
+    st.pyplot(plt)
+    plt.clf()
+
+    # EDA Multivariate: Heatmap korelasi
+    plt.figure(figsize=(10, 8))
+    numeric_cols = filtered_data.select_dtypes(include=['number']).columns
+    corr = filtered_data[numeric_cols].corr()
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm')
+    plt.title('Korelasi antara Fitur')
+    st.pyplot(plt)
+    plt.clf()
+
+    # EDA Numerikal: Scatter plot
+    plt.figure(figsize=(12, 6))
+    sns.scatterplot(x='temp', y='cnt', data=filtered_data)
+    plt.title('Scatter Plot Temp vs Jumlah Penjualan')
+    plt.xlabel('Temperatur')
+    plt.ylabel('Jumlah Penjualan (cnt)')
+    st.pyplot(plt)
+    plt.clf()
+
+    # Cek DataFrame hour
     if not dataframes['hour'].empty:
-        sales_per_hour = dataframes['hour'].groupby('hr')['cnt'].sum().reset_index()
+        st.subheader("Analisis Data Penjualan Per Jam")
 
+        # Jumlah penjualan per jam
+        sales_per_hour = dataframes['hour'].groupby('hr')['cnt'].sum().reset_index()
+        
         plt.figure(figsize=(12, 6))
         sns.barplot(x='hr', y='cnt', data=sales_per_hour)
         plt.title('Jumlah Penjualan Per Jam')
         plt.xlabel('Jam')
         plt.ylabel('Jumlah Penjualan (cnt)')
         st.pyplot(plt)
-        plt.clf()  # Membersihkan plot
+        plt.clf()
     else:
         st.warning("Data per jam kosong.")
 else:
