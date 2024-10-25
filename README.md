@@ -1,4 +1,3 @@
-```markdown
 # Dicoding Collection Dashboard ✨
 
 ## Setup Environment - Anaconda
@@ -36,4 +35,3 @@ streamlit run dashboard.py
 
 ## Copyright
 Copyright © Dicoding 2023 | Zidan Alfariza Putra Pratama 2024
-```
